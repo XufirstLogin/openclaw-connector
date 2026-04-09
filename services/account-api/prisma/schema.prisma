@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum VerificationPurpose {
+  register
+  reset_password
+  login
+}
+
+enum AuthType {
+  password
+  key
+}
+
+model User {
+  id            String            @id @default(cuid())
+  email         String            @unique
+  passwordHash  String
+  emailVerified Boolean           @default(false)
+  status        String            @default("active")
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  serverConfig  UserServerConfig?
+  sessions      UserSession[]
+  auditLogs     AuditLog[]
+}
+
+model EmailVerificationCode {
+  id        String              @id @default(cuid())
+  email     String
+  code      String
+  purpose   VerificationPurpose
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  @@index([email, purpose])
+}
+
+model UserServerConfig {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  user                   User     @relation(fields: [userId], references: [id])
+  serverIp               String
+  sshPort                Int
+  sshUsername            String
+  authType               AuthType
+  sshPasswordEncrypted   String?
+  sshPrivateKeyEncrypted String?
+  openclawTokenEncrypted String
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model UserSession {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  accessTokenHash  String   @unique
+  refreshTokenHash String   @unique
+  clientType       String   @default("desktop")
+  lastLoginIp      String?
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}

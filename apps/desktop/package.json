@@ -1,0 +1,79 @@
+{
+    "name":  "@openclaw/desktop",
+    "private":  true,
+    "version":  "0.1.0",
+    "description":  "Windows desktop client for local-only OpenClaw multi-server management and SSH tunneling.",
+    "author":  "OpenClaw Connector",
+    "type":  "module",
+    "main":  "dist-electron/main.cjs",
+    "scripts":  {
+                    "dev":  "concurrently -k \"npm:dev:renderer\" \"npm:dev:main\" \"npm:dev:electron\"",
+                    "dev:renderer":  "vite --host 127.0.0.1 --port 5173",
+                    "dev:main":  "tsup electron/main.ts electron/preload.ts --format cjs --out-dir dist-electron --watch --sourcemap --external electron",
+                    "dev:electron":  "wait-on tcp:127.0.0.1:5173 file:./dist-electron/main.cjs \u0026\u0026 cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
+                    "build":  "npm run build:renderer \u0026\u0026 npm run build:main",
+                    "build:renderer":  "vite build",
+                    "build:main":  "tsup electron/main.ts electron/preload.ts --format cjs --out-dir dist-electron --sourcemap --external electron",
+                    "test":  "node --test ./test/*.test.mjs",
+                    "dist":  "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false npm run build \u0026\u0026 electron-builder --win nsis",
+                    "dist:win":  "npm run dist",
+                    "dist:signed":  "npm run build \u0026\u0026 electron-builder --win nsis"
+                },
+    "build":  {
+                  "appId":  "com.openclaw.connector",
+                  "productName":  "OpenClaw Connector",
+                  "electronVersion":  "35.2.1",
+                  "icon":  "build/icon.ico",
+                  "directories":  {
+                                      "output":  "release"
+                                  },
+                  "extraResources":  [
+                                         {
+                                             "from":  "build/icon.png",
+                                             "to":  "icon.png"
+                                         }
+                                     ],
+                  "files":  [
+                                "dist-electron/**/*",
+                                "dist-renderer/**/*",
+                                "package.json"
+                            ],
+                  "win":  {
+                              "icon":  "build/icon.ico",
+                              "signAndEditExecutable":  false,
+                              "target":  [
+                                             {
+                                                 "target":  "nsis",
+                                                 "arch":  [
+                                                              "x64"
+                                                          ]
+                                             }
+                                         ]
+                          },
+                  "nsis":  {
+                               "oneClick":  false,
+                               "allowToChangeInstallationDirectory":  true,
+                               "createDesktopShortcut":  true,
+                               "createStartMenuShortcut":  true
+                           }
+              },
+    "dependencies":  {
+                         "react":  "^19.1.0",
+                         "react-dom":  "^19.1.0",
+                         "ssh2":  "^1.16.0"
+                     },
+    "devDependencies":  {
+                            "@types/node":  "^24.0.10",
+                            "@types/react":  "^19.1.8",
+                            "@types/react-dom":  "^19.1.6",
+                            "@vitejs/plugin-react":  "^4.6.0",
+                            "concurrently":  "^9.1.2",
+                            "cross-env":  "^7.0.3",
+                            "electron":  "35.2.1",
+                            "electron-builder":  "^26.0.12",
+                            "tsup":  "^8.5.0",
+                            "typescript":  "^5.8.3",
+                            "vite":  "^6.3.5",
+                            "wait-on":  "^8.0.3"
+                        }
+}

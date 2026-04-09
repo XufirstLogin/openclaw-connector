@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: openclaw-connector-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: openclaw_connector
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - openclaw_connector_pgdata:/var/lib/postgresql/data
+
+volumes:
+  openclaw_connector_pgdata:
