@@ -3,12 +3,14 @@
 const ipv4Pattern = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
 const hostnamePattern = /^(?=.{1,253}$)(?!-)(?:[a-zA-Z0-9-]{1,63}\.)*[a-zA-Z0-9-]{1,63}$/;
 
+const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+
 function isValidServerHost(value: string) {
   if (value.includes('://') || value.includes('/') || /\s/.test(value)) {
     return false;
   }
 
-  return ipv4Pattern.test(value) || hostnamePattern.test(value) || value.includes(':');
+  return ipv4Pattern.test(value) || hostnamePattern.test(value) || ipv6Pattern.test(value);
 }
 
 export function validateServerConfig(config: ServerConfigState) {

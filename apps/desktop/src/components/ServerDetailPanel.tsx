@@ -118,7 +118,7 @@ export function ServerDetailPanel({
             {!server.isDefault ? (
               <Button type="button" variant="ghost" className="server-detail-panel__action server-detail-panel__action--ghost" onClick={() => onSetDefault(server)}>设为默认</Button>
             ) : null}
-            <Button type="button" variant="ghost" className="server-detail-panel__action server-detail-panel__action--ghost" onClick={() => onDelete(server)}>删除</Button>
+            <Button type="button" variant="ghost" className="server-detail-panel__action server-detail-panel__action--ghost" onClick={() => onDelete(server)} disabled={deleteDisabled}>删除</Button>
           </div>
         </div>
       </div>

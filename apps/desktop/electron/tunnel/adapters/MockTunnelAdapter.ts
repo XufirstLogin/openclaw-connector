@@ -36,7 +36,7 @@ export class MockTunnelAdapter implements TunnelAdapter {
 
   async disconnect(): Promise<void> {
     this.snapshot = {
-      status: 'connected',
+      status: 'disconnected',
       adapterKind: this.kind,
       mode: 'mock',
     };

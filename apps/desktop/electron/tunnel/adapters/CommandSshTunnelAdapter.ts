@@ -44,6 +44,7 @@ export class CommandSshTunnelAdapter implements TunnelAdapter {
   private tempKeyPath: string | null = null;
   private stderrBuffer: string[] = [];
   private readonly startupWaitMs = 1500;
+  private currentConnectionId: symbol | null = null;
 
   assess(config: TunnelConnectRequest): TunnelAdapterAssessment {
     if (!this.sshPath) {
@@ -93,6 +94,9 @@ export class CommandSshTunnelAdapter implements TunnelAdapter {
     await this.disconnect();
     this.stderrBuffer = [];
 
+    const connectionId = Symbol('cmd-ssh-conn');
+    this.currentConnectionId = connectionId;
+
     const keyDir = path.join(os.tmpdir(), 'openclaw-connector', 'ssh-keys');
     await mkdir(keyDir, { recursive: true });
 
@@ -140,6 +144,7 @@ export class CommandSshTunnelAdapter implements TunnelAdapter {
     });
 
     this.childProcess.once('exit', async () => {
+      if (this.currentConnectionId !== connectionId) return;
       const lastReason = this.stderrBuffer.join('\n').trim() || 'ssh 进程已退出。';
       this.snapshot = {
         status: 'error',
@@ -155,6 +160,7 @@ export class CommandSshTunnelAdapter implements TunnelAdapter {
     });
 
     this.childProcess.once('error', async (error) => {
+      if (this.currentConnectionId !== connectionId) return;
       this.snapshot = {
         status: 'error',
         adapterKind: this.kind,

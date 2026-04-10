@@ -82,7 +82,7 @@ export function ServerCard({
         <Button type="button" variant="secondary" className="server-card__action server-card__action--secondary" onClick={(event) => { event.stopPropagation(); onEdit(); }}>
           编辑
         </Button>
-        <Button type="button" variant="ghost" className="server-card__action server-card__action--secondary" onClick={(event) => { event.stopPropagation(); onDelete(); }}>
+        <Button type="button" variant="ghost" className="server-card__action server-card__action--secondary" onClick={(event) => { event.stopPropagation(); onDelete(); }} disabled={deleteDisabled}>
           删除
         </Button>
       </div>

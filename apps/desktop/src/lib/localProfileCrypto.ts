@@ -31,7 +31,7 @@ function ensureLocalProfileKey(keyFilePath: string) {
 }
 
 function deriveBackupKey(password: string, salt: Buffer) {
-  return scryptSync(password, salt, KEY_LENGTH);
+  return scryptSync(password, salt, KEY_LENGTH, { N: 2 ** 17, r: 8, p: 1 });
 }
 
 export class LocalProfileCrypto {

@@ -1,7 +1,7 @@
 {
     "name":  "@openclaw/desktop",
     "private":  true,
-    "version":  "0.1.0",
+    "version":  "0.2.0",
     "description":  "Windows desktop client for local-only OpenClaw multi-server management and SSH tunneling.",
     "author":  "OpenClaw Connector",
     "type":  "module",

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackupPasswordDialog } from './components/BackupPasswordDialog';
 import { DesktopTitleBar } from './components/DesktopTitleBar';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { FeedbackToast, type FeedbackToastKind } from './components/FeedbackToast';
 import { ImportPreviewDialog } from './components/ImportPreviewDialog';
 import {
@@ -20,7 +21,7 @@ import { DiagnosticsPage } from './pages/DiagnosticsPage';
 import { LocalWorkspacePage } from './pages/LocalWorkspacePage';
 import { ServerEditorPage } from './pages/ServerEditorPage';
 import { SettingsPage } from './pages/SettingsPage';
-import { readLocalAppPreferences, writeLocalAppPreferences } from './state/authStore';
+import { readLocalAppPreferences, writeLocalAppPreferences, type AppTheme } from './state/authStore';
 import type { AppView, ConnectionVisualState, EditorMode } from './types/app';
 import type { AppMetadata, DiagnosticsLogEntry, ImportPreviewResult } from './types/bridge';
 import {
@@ -130,11 +131,22 @@ export function App() {
   const [appMetadata, setAppMetadata] = useState<AppMetadata | null>(null);
   const [importPreview, setImportPreview] = useState<ImportPreviewResult | null>(null);
   const [importingPreviewedBackup, setImportingPreviewedBackup] = useState(false);
+  const [theme, setTheme] = useState<AppTheme>(() => readLocalAppPreferences().theme);
   const backupPasswordResolverRef = useRef<((value: string | null) => void) | null>(null);
   const previousTunnelStatusRef = useRef<ConnectionVisualState>('disconnected');
   const pendingImportPasswordRef = useRef('');
 
   const appVersion = appMetadata?.version ?? window.openclawDesktop?.version ?? '0.1.0';
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  const handleToggleTheme = () => {
+    const next: AppTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(next);
+    writeLocalAppPreferences({ theme: next });
+  };
 
   const showFeedback = (kind: FeedbackToastKind, title: string, message: string) => {
     setFeedback({ open: true, kind, title, message });
@@ -356,13 +368,17 @@ export function App() {
         : '服务器工作区';
 
   const handleSaveServer = async (input: SaveLocalServerInput) => {
-    const previousProfile = profile;
-    const nextProfile = await saveLocalServer(input);
-    const savedId = resolveSavedServerId(previousProfile, nextProfile, input);
-    setProfile(nextProfile);
-    selectServer(savedId);
-    setView('workspace');
-    showFeedback('success', input.id ? '已更新' : '已创建', input.id ? '服务器配置已更新。' : '服务器配置已创建。');
+    try {
+      const previousProfile = profile;
+      const nextProfile = await saveLocalServer(input);
+      const savedId = resolveSavedServerId(previousProfile, nextProfile, input);
+      setProfile(nextProfile);
+      selectServer(savedId);
+      setView('workspace');
+      showFeedback('success', input.id ? '已更新' : '已创建', input.id ? '服务器配置已更新。' : '服务器配置已创建。');
+    } catch (error) {
+      showFeedback('error', '保存失败', error instanceof Error ? error.message : '服务器配置保存失败，请稍后重试。');
+    }
   };
 
   const handleDeleteServer = async (id: string) => {
@@ -371,25 +387,33 @@ export function App() {
       return;
     }
 
-    const nextProfile = await deleteLocalServer(id);
-    if (activeConnectionServerId === id) {
-      setActiveConnectionServerId(null);
-      setBusyServerId(null);
-      setStatus('disconnected');
-      setStatusServerId(null);
+    try {
+      const nextProfile = await deleteLocalServer(id);
+      if (activeConnectionServerId === id) {
+        setActiveConnectionServerId(null);
+        setBusyServerId(null);
+        setStatus('disconnected');
+        setStatusServerId(null);
+      }
+      if (editorState.serverId === id) {
+        setView('workspace');
+        setEditorState({ mode: 'create', serverId: null });
+      }
+      setProfile(nextProfile);
+      showFeedback('success', '已删除', '服务器已删除。');
+    } catch (error) {
+      showFeedback('error', '删除失败', error instanceof Error ? error.message : '服务器删除失败，请稍后重试。');
     }
-    if (editorState.serverId === id) {
-      setView('workspace');
-      setEditorState({ mode: 'create', serverId: null });
-    }
-    setProfile(nextProfile);
-    showFeedback('success', '已删除', '服务器已删除。');
   };
 
   const handleSetDefault = async (server: LocalServerRecord) => {
-    const nextProfile = await setDefaultLocalServer(server.id);
-    setProfile(nextProfile);
-    showFeedback('success', '默认服务器', '默认服务器已更新。');
+    try {
+      const nextProfile = await setDefaultLocalServer(server.id);
+      setProfile(nextProfile);
+      showFeedback('success', '默认服务器', '默认服务器已更新。');
+    } catch (error) {
+      showFeedback('error', '设置失败', error instanceof Error ? error.message : '默认服务器设置失败，请稍后重试。');
+    }
   };
 
   const handleConnectServer = async (server: LocalServerRecord) => {
@@ -402,6 +426,16 @@ export function App() {
 
     try {
       const response = await connectTunnel(server);
+
+      // After the await, the subscription may have already pushed a different
+      // status (e.g. 'error' or 'disconnected'). Check whether we are still
+      // the relevant connection before overwriting state.
+      const currentStatus = previousTunnelStatusRef.current;
+      if (currentStatus === 'error' || currentStatus === 'disconnected') {
+        setBusyServerId(null);
+        return;
+      }
+
       if (!response.connected) {
         setStatus('error');
         setBusyServerId(null);
@@ -585,6 +619,7 @@ ${result.filePath}` : '';
       />
 
       <main className="desktop-app-shell__content">
+        <ErrorBoundary>
         {view === 'workspace' ? (
           <LocalWorkspacePage
             profile={profile}
@@ -612,6 +647,8 @@ ${result.filePath}` : '';
           <SettingsPage
             version={appVersion}
             metadata={appMetadata}
+            theme={theme}
+            onToggleTheme={handleToggleTheme}
             autostartEnabled={autostartEnabled}
             autostartLoading={autostartLoading}
             onToggleAutostart={handleToggleAutostart}
@@ -639,6 +676,7 @@ ${result.filePath}` : '';
             onSave={handleSaveServer}
           />
         )}
+        </ErrorBoundary>
 
         <div style={{ display: 'none' }} aria-hidden="true">
           <AboutPage

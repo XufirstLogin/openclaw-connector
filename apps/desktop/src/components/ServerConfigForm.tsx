@@ -25,7 +25,11 @@ export function ServerConfigForm({ config, onFieldChange }: ServerConfigFormProp
             type="number"
             placeholder="22"
             value={String(config.sshPort)}
-            onChange={(event) => onFieldChange('sshPort', Number(event.target.value) || 22)}
+            onChange={(event) => {
+              const raw = event.target.value;
+              const num = parseInt(raw, 10);
+              onFieldChange('sshPort', Number.isNaN(num) ? 0 : num);
+            }}
           />
         </Field>
       </div>

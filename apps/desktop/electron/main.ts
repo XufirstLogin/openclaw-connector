@@ -17,7 +17,7 @@ import { registerLocalProfileHandlers } from './ipc/localProfileHandlers';
 import { TunnelManager } from './tunnelManager';
 
 const tunnelManager = new TunnelManager();
-const APP_VERSION = '0.1.0';
+const APP_VERSION = '0.2.0';
 const APP_PRODUCT_NAME = 'OpenClaw Connector';
 const APP_RUNTIME_MODE = '本地模式';
 const APP_COPYRIGHT_OWNER = 'CSDN 作者';
@@ -212,7 +212,7 @@ function findKnownServerById(serverId?: string | null) {
     return null;
   }
 
-  return getKnownServers().find((server) => server.id == serverId) ?? null;
+  return getKnownServers().find((server) => server.id === serverId) ?? null;
 }
 
 function findTrayCurrentServer() {
@@ -297,25 +297,40 @@ async function scheduleReconnectAttempt(reason?: string) {
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     reconnectAttempt = nextAttempt;
-    appendDiagnosticsEntry('info', 'reconnect_attempt', `\u6b63\u5728\u6267\u884c\u7b2c ${nextAttempt}/3 \u6b21\u81ea\u52a8\u91cd\u8fde\u3002`, reconnectConfig ?? undefined);
 
-    void tunnelManager.connect(reconnectConfig)
+    // If the user explicitly disconnected while this timer was pending, abort.
+    if (userRequestedDisconnect || isQuitting) return;
+
+    // Capture config at scheduling time so a concurrent manual connect
+    // cannot replace it with a different server's config mid-flight.
+    const configSnapshot = reconnectConfig ? { ...reconnectConfig } : null;
+    if (!configSnapshot) return;
+
+    appendDiagnosticsEntry('info', 'reconnect_attempt', `\u6b63\u5728\u6267\u884c\u7b2c ${nextAttempt}/3 \u6b21\u81ea\u52a8\u91cd\u8fde\u3002`, configSnapshot);
+
+    void tunnelManager.connect(configSnapshot)
       .then((result) => {
+        // Re-check: user may have disconnected while connect() was in-flight.
+        if (userRequestedDisconnect) {
+          void tunnelManager.disconnect().catch(() => undefined);
+          emitTunnelStatusChanged();
+          return;
+        }
+
         if (result.connected) {
-          userRequestedDisconnect = false;
-          rememberSuccessfulConnection(reconnectConfig?.serverId ?? null);
-          appendDiagnosticsEntry('info', 'reconnect_success', '\u81ea\u52a8\u91cd\u8fde\u6210\u529f\u3002', reconnectConfig ?? undefined);
+          rememberSuccessfulConnection(configSnapshot.serverId ?? null);
+          appendDiagnosticsEntry('info', 'reconnect_success', '\u81ea\u52a8\u91cd\u8fde\u6210\u529f\u3002', configSnapshot);
           stopReconnectSequence();
           emitTunnelStatusChanged();
           return;
         }
 
-        appendDiagnosticsEntry('error', 'reconnect_failed', result.reason ?? '\u81ea\u52a8\u91cd\u8fde\u5931\u8d25\u3002', reconnectConfig ?? undefined);
+        appendDiagnosticsEntry('error', 'reconnect_failed', result.reason ?? '\u81ea\u52a8\u91cd\u8fde\u5931\u8d25\u3002', configSnapshot);
         emitTunnelStatusChanged();
         void scheduleReconnectAttempt(result.reason);
       })
       .catch((error) => {
-        appendDiagnosticsEntry('error', 'reconnect_failed', error instanceof Error ? error.message : '\u81ea\u52a8\u91cd\u8fde\u5931\u8d25\u3002', reconnectConfig ?? undefined);
+        appendDiagnosticsEntry('error', 'reconnect_failed', error instanceof Error ? error.message : '\u81ea\u52a8\u91cd\u8fde\u5931\u8d25\u3002', configSnapshot);
         emitTunnelStatusChanged();
         void scheduleReconnectAttempt(error instanceof Error ? error.message : undefined);
       });
@@ -398,7 +413,7 @@ function getTrayStatusLabel(snapshot: TunnelStateSnapshot) {
 
 function stopTunnelHealthMonitor() {
   if (tunnelHealthMonitor) {
-    clearInterval(tunnelHealthMonitor);
+    clearTimeout(tunnelHealthMonitor);
     tunnelHealthMonitor = null;
   }
 }
@@ -410,18 +425,29 @@ function startTunnelHealthMonitor() {
     return;
   }
 
-  tunnelHealthMonitor = setInterval(() => {
-    void tunnelManager.checkHealth()
-      .then((snapshot) => {
-        if (snapshot.status !== 'connected') {
-          appendDiagnosticsEntry('warn', 'health_check_failed', snapshot.reason ?? '\u8fde\u63a5\u5065\u5eb7\u68c0\u67e5\u5931\u8d25\u3002', snapshot);
-          emitTunnelStatusChanged();
-        }
-      })
-      .catch((error) => {
-        appendDiagnosticsEntry('error', 'health_check_failed', error instanceof Error ? error.message : '\u8fde\u63a5\u5065\u5eb7\u68c0\u67e5\u5931\u8d25\u3002');
-      });
-  }, TUNNEL_HEALTH_POLL_MS);
+  function scheduleNextCheck() {
+    tunnelHealthMonitor = setTimeout(() => {
+      tunnelHealthMonitor = null;
+      void tunnelManager.checkHealth()
+        .then((snapshot) => {
+          if (snapshot.status !== 'connected') {
+            appendDiagnosticsEntry('warn', 'health_check_failed', snapshot.reason ?? '\u8fde\u63a5\u5065\u5eb7\u68c0\u67e5\u5931\u8d25\u3002', snapshot);
+            emitTunnelStatusChanged();
+          }
+        })
+        .catch((error) => {
+          appendDiagnosticsEntry('error', 'health_check_failed', error instanceof Error ? error.message : '\u8fde\u63a5\u5065\u5eb7\u68c0\u67e5\u5931\u8d25\u3002');
+        })
+        .finally(() => {
+          // Only schedule next check if monitor hasn't been stopped
+          if (tunnelManager.getStatus().status === 'connected') {
+            scheduleNextCheck();
+          }
+        });
+    }, TUNNEL_HEALTH_POLL_MS);
+  }
+
+  scheduleNextCheck();
 }
 
 function refreshTrayMenu(snapshot: TunnelStateSnapshot = tunnelManager.getStatus()) {
@@ -493,6 +519,7 @@ function refreshTrayMenu(snapshot: TunnelStateSnapshot = tunnelManager.getStatus
           })
           .catch((error) => {
             appendDiagnosticsEntry('error', 'disconnect_failed', error instanceof Error ? error.message : '\u65ad\u5f00\u5931\u8d25\u3002');
+            emitTunnelStatusChanged();
           });
       },
     },
@@ -696,10 +723,21 @@ if (gotSingleInstanceLock) {
   });
 }
 
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
   isQuitting = true;
   stopTunnelHealthMonitor();
   stopReconnectSequence();
+
+  // Ensure active SSH tunnel is terminated before the process exits.
+  // Without this, spawned ssh.exe child processes become orphans.
+  if (tunnelManager.getStatus().status !== 'disconnected') {
+    event.preventDefault();
+    tunnelManager.disconnect()
+      .catch(() => undefined)
+      .finally(() => {
+        app.exit();
+      });
+  }
 });
 
 app.on('window-all-closed', () => {

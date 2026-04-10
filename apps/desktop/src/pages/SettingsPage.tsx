@@ -1,10 +1,13 @@
 import React from 'react';
 import { Button, GlassCard } from '../components/ui';
 import type { AppMetadata } from '../types/bridge';
+import type { AppTheme } from '../state/authStore';
 
 type SettingsPageProps = {
   version: string;
   metadata?: AppMetadata | null;
+  theme: AppTheme;
+  onToggleTheme: () => void;
   autostartEnabled: boolean;
   autostartLoading: boolean;
   onToggleAutostart: () => Promise<unknown>;
@@ -17,6 +20,8 @@ type SettingsPageProps = {
 export function SettingsPage({
   version,
   metadata,
+  theme,
+  onToggleTheme,
   autostartEnabled,
   autostartLoading,
   onToggleAutostart,
@@ -62,6 +67,26 @@ export function SettingsPage({
                 onClick={() => { void onToggleAutostart(); }}
               >
                 {autostartLoading ? '处理中...' : autostartEnabled ? '关闭自启动' : '开启自启动'}
+              </Button>
+            </div>
+          </GlassCard>
+
+          <GlassCard title="外观主题" subtitle="选择适合你的界面配色方案，设置会自动保存。">
+            <div className="settings-page__item-row">
+              <div>
+                <strong>{theme === 'light' ? '浅色模式' : '深色模式'}</strong>
+                <p className="glass-card__subtitle">
+                  {theme === 'light'
+                    ? '当前为浅色主题，界面以蓝白色调为主，适合明亮环境使用。'
+                    : '当前为深色主题（Obsidian Night），低亮度暗色调，适合夜间或弱光环境。'}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant={theme === 'light' ? 'primary' : 'secondary'}
+                onClick={onToggleTheme}
+              >
+                {theme === 'light' ? '切换深色' : '切换浅色'}
               </Button>
             </div>
           </GlassCard>

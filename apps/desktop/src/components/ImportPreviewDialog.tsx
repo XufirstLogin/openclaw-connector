@@ -16,7 +16,7 @@ export function ImportPreviewDialog({ open, preview, importing, onCancel, onConf
   }
 
   return (
-    <div className="modal-overlay" role="presentation" onClick={onCancel}>
+    <div className="modal-overlay" role="presentation" onClick={importing ? undefined : onCancel}>
       <div className="import-preview-dialog" role="dialog" aria-modal="true" aria-label="导入预览" onClick={(event) => event.stopPropagation()}>
         <GlassCard title="导入预览" subtitle="导入前先检查新增、重复和跳过的数据。">
           <div className="import-preview-dialog__stats">
@@ -40,7 +40,7 @@ export function ImportPreviewDialog({ open, preview, importing, onCancel, onConf
           )}
 
           <div className="import-preview-dialog__actions">
-            <Button type="button" variant="ghost" onClick={onCancel}>取消</Button>
+            <Button type="button" variant="ghost" onClick={onCancel} disabled={importing}>取消</Button>
             <Button type="button" onClick={onConfirm} disabled={importing}>{importing ? '导入中...' : '继续导入'}</Button>
           </div>
         </GlassCard>

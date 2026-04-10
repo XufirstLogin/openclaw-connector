@@ -1,6 +1,9 @@
-﻿export type LocalAppPreferenceState = {
+﻿export type AppTheme = 'light' | 'dark';
+
+export type LocalAppPreferenceState = {
   lastSelectedServerId: string | null;
   workspaceLayout: 'cards';
+  theme: AppTheme;
 };
 
 const LOCAL_PREFERENCE_STORAGE_KEY = 'openclaw.local.preferences';
@@ -8,6 +11,7 @@ const LOCAL_PREFERENCE_STORAGE_KEY = 'openclaw.local.preferences';
 const defaultPreferenceState: LocalAppPreferenceState = {
   lastSelectedServerId: null,
   workspaceLayout: 'cards',
+  theme: 'light',
 };
 
 function canUseLocalStorage() {

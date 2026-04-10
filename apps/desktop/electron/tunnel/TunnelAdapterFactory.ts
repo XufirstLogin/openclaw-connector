@@ -5,14 +5,17 @@ import { Ssh2TunnelAdapter } from './adapters/Ssh2TunnelAdapter';
 import { TunnelAdapter } from './adapters/TunnelAdapter';
 
 export class TunnelAdapterFactory {
-  private readonly adapters: TunnelAdapter[] = [
-    new Ssh2TunnelAdapter(),
-    new CommandSshTunnelAdapter(),
-    new MockTunnelAdapter(),
-  ];
+  private createAdapters(): TunnelAdapter[] {
+    return [
+      new Ssh2TunnelAdapter(),
+      new CommandSshTunnelAdapter(),
+      new MockTunnelAdapter(),
+    ];
+  }
 
   pick(config: TunnelConnectRequest): TunnelAdapter {
-    const ranked = this.adapters
+    const adapters = this.createAdapters();
+    const ranked = adapters
       .map((adapter) => ({ adapter, assessment: adapter.assess(config) }))
       .filter((entry) => entry.assessment.supported)
       .sort((a, b) => b.assessment.priority - a.assessment.priority);
@@ -21,11 +24,11 @@ export class TunnelAdapterFactory {
       return ranked[0].adapter;
     }
 
-    return this.adapters[this.adapters.length - 1];
+    return adapters[adapters.length - 1];
   }
 
   diagnose(config: TunnelConnectRequest) {
-    return this.adapters.map((adapter) => ({
+    return this.createAdapters().map((adapter) => ({
       kind: adapter.kind,
       ...adapter.assess(config),
     }));

@@ -62,7 +62,9 @@ export class LocalProfileRepository {
   save(document: StoredLocalProfileDocument) {
     this.ensureStorageDir();
     const normalized = this.normalize(document);
-    fs.writeFileSync(this.profileFilePath, JSON.stringify(normalized, null, 2), 'utf8');
+    const tmpPath = this.profileFilePath + '.tmp';
+    fs.writeFileSync(tmpPath, JSON.stringify(normalized, null, 2), 'utf8');
+    fs.renameSync(tmpPath, this.profileFilePath);
     return normalized;
   }
 

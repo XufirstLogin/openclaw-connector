@@ -30,6 +30,7 @@ export class Ssh2TunnelAdapter implements TunnelAdapter {
   private sockets = new Set<net.Socket>();
   private remoteStreams = new Set<any>();
   private disconnectRequested = false;
+  private currentConnectionId: symbol | null = null;
 
   assess(config: TunnelConnectRequest): TunnelAdapterAssessment {
     const ssh2 = loadSsh2Module();
@@ -87,6 +88,11 @@ export class Ssh2TunnelAdapter implements TunnelAdapter {
     const client = new ssh2.Client();
     this.client = client;
 
+    // Capture identity so stale event handlers from a previous connection
+    // cannot corrupt state belonging to a newer connection.
+    const connectionId = Symbol('ssh2-conn');
+    this.currentConnectionId = connectionId;
+
     const connectionOptions: Record<string, unknown> = {
       host: config.serverIp,
       port: config.sshPort || 22,
@@ -122,6 +128,7 @@ export class Ssh2TunnelAdapter implements TunnelAdapter {
 
           client.forwardOut(srcAddr, srcPort, '127.0.0.1', 18789, (error: Error | undefined, stream: any) => {
             if (error || !stream) {
+              this.sockets.delete(localSocket);
               localSocket.destroy(error);
               return;
             }
@@ -187,6 +194,7 @@ export class Ssh2TunnelAdapter implements TunnelAdapter {
       });
 
       client.on('error', (error: Error) => {
+        if (this.currentConnectionId !== connectionId) return;
         finish(
           {
             connected: false,
@@ -207,6 +215,32 @@ export class Ssh2TunnelAdapter implements TunnelAdapter {
       });
 
       client.on('close', () => {
+        // Ignore stale close events from a previous connection
+        if (this.currentConnectionId !== connectionId) return;
+
+        // Clean up TCP server and sockets to free port 18789 for future reconnections
+        for (const socket of this.sockets) {
+          closeSocket(socket);
+        }
+        this.sockets.clear();
+
+        for (const stream of this.remoteStreams) {
+          try {
+            stream.end?.();
+            stream.close?.();
+          } catch {
+            // ignore cleanup errors
+          }
+        }
+        this.remoteStreams.clear();
+
+        if (this.server) {
+          this.server.close(() => { /* best-effort */ });
+          this.server = null;
+        }
+
+        this.client = null;
+
         if (this.disconnectRequested) {
           this.snapshot = {
             status: 'disconnected',
@@ -249,9 +283,12 @@ export class Ssh2TunnelAdapter implements TunnelAdapter {
     this.remoteStreams.clear();
 
     if (this.server) {
-      await new Promise<void>((resolve) => {
-        this.server?.close(() => resolve());
-      }).catch(() => undefined);
+      await Promise.race([
+        new Promise<void>((resolve) => {
+          this.server?.close(() => resolve());
+        }),
+        new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
+      ]).catch(() => undefined);
       this.server = null;
     }
 
