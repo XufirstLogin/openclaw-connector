@@ -29,6 +29,7 @@ function buildEditableFields(input: Partial<LocalServerEditableFields>, fallback
     serverIp: input.serverIp ?? fallback?.serverIp ?? defaultServerConfigState.serverIp,
     sshPort: input.sshPort ?? fallback?.sshPort ?? defaultServerConfigState.sshPort,
     sshUsername: input.sshUsername ?? fallback?.sshUsername ?? defaultServerConfigState.sshUsername,
+    openclawPort: input.openclawPort ?? fallback?.openclawPort ?? defaultServerConfigState.openclawPort,
     authType: input.authType ?? fallback?.authType ?? defaultServerConfigState.authType,
     sshPassword: input.sshPassword ?? fallback?.sshPassword ?? '',
     sshPrivateKey: input.sshPrivateKey ?? fallback?.sshPrivateKey ?? '',
@@ -63,6 +64,7 @@ export class LocalProfileService {
       serverIp: editable.serverIp,
       sshPort: editable.sshPort,
       sshUsername: editable.sshUsername,
+      openclawPort: editable.openclawPort,
       authType: editable.authType,
       sshPassword: editable.sshPassword,
       sshPrivateKey: editable.sshPrivateKey,
@@ -135,6 +137,7 @@ export class LocalProfileService {
       serverIp: editable.serverIp,
       sshPort: editable.sshPort,
       sshUsername: editable.sshUsername,
+      openclawPort: editable.openclawPort,
       authType: editable.authType,
       sshPassword: editable.sshPassword,
       sshPrivateKey: editable.sshPrivateKey,
@@ -202,6 +205,7 @@ export class LocalProfileService {
       serverIp: server.serverIp,
       sshPort: server.sshPort,
       sshUsername: server.sshUsername,
+      openclawPort: server.openclawPort ?? defaultServerConfigState.openclawPort,
       authType: server.authType,
       sshPassword: this.crypto.encryptOptional(server.sshPassword),
       sshPrivateKey: this.crypto.encryptOptional(server.sshPrivateKey),
@@ -230,6 +234,7 @@ export class LocalProfileService {
       serverIp: server.serverIp,
       sshPort: server.sshPort,
       sshUsername: server.sshUsername,
+      openclawPort: server.openclawPort ?? defaultServerConfigState.openclawPort,
       authType: server.authType,
       sshPassword: this.crypto.decryptOptional(server.sshPassword),
       sshPrivateKey: this.crypto.decryptOptional(server.sshPrivateKey),
@@ -241,3 +246,5 @@ export class LocalProfileService {
     };
   }
 }
+
+

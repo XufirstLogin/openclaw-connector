@@ -7,6 +7,7 @@ type ServerCardProps = {
   selected?: boolean;
   isActiveConnection?: boolean;
   isConnecting?: boolean;
+  connectDisabled?: boolean;
   onSelect: () => void;
   onConnect: () => void;
   onEdit: () => void;
@@ -29,6 +30,7 @@ export function ServerCard({
   selected = false,
   isActiveConnection = false,
   isConnecting = false,
+  connectDisabled = false,
   onSelect,
   onConnect,
   onEdit,
@@ -76,7 +78,7 @@ export function ServerCard({
       </div>
 
       <div className="server-card__actions">
-        <Button type="button" className="server-card__action server-card__action--primary" onClick={(event) => { event.stopPropagation(); onConnect(); }} disabled={isConnecting || isActiveConnection}>
+        <Button type="button" className="server-card__action server-card__action--primary" onClick={(event) => { event.stopPropagation(); onConnect(); }} disabled={connectDisabled || isConnecting || isActiveConnection}>
           {connectLabel}
         </Button>
         <Button type="button" variant="secondary" className="server-card__action server-card__action--secondary" onClick={(event) => { event.stopPropagation(); onEdit(); }}>

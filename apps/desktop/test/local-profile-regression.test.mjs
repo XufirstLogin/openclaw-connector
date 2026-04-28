@@ -9,6 +9,7 @@ const __dirname = path.dirname(__filename);
 const appRoot = path.resolve(__dirname, '..');
 
 const localProfileTypePath = path.join(appRoot, 'src', 'types', 'localProfile.ts');
+const configStorePath = path.join(appRoot, 'src', 'state', 'configStore.ts');
 const localProfileCryptoPath = path.join(appRoot, 'src', 'lib', 'localProfileCrypto.ts');
 const localProfileRepositoryPath = path.join(appRoot, 'src', 'lib', 'localProfileRepository.ts');
 const localProfileServicePath = path.join(appRoot, 'src', 'lib', 'localProfileService.ts');
@@ -32,6 +33,7 @@ test('local profile type contract exists with multi-server metadata and encrypte
   assert.match(source, /remark\??:\s*string/);
   assert.match(source, /isDefault:\s*boolean/);
   assert.match(source, /lastConnectedAt\??:\s*string/);
+  assert.match(read(configStorePath), /openclawPort:\s*number/);
   assert.match(source, /encrypted/);
 });
 
@@ -42,6 +44,14 @@ test('local profile crypto and repository layers exist for encrypted appdata per
   assert.match(read(localProfileCryptoPath), /encrypt|decrypt/);
   assert.match(read(localProfileRepositoryPath), /APPDATA|appData|local-profile\.json/);
   assert.match(read(localProfileServicePath), /list|save|import|export/);
+  assert.match(read(localProfileServicePath), /openclawPort/);
+  assert.match(read(localProfileServicePath), /defaultServerConfigState\.openclawPort/);
+});
+
+test('backup crypto derives scrypt keys with an explicit memory budget for export and import', () => {
+  const cryptoSource = read(localProfileCryptoPath);
+  assert.match(cryptoSource, /scryptSync/);
+  assert.match(cryptoSource, /maxmem\s*:/);
 });
 
 test('electron preload exposes local profile APIs to renderer without direct fs access', () => {
@@ -72,3 +82,5 @@ test('electron import and export handlers require backup-password-aware encrypte
   assert.match(ipcSource, /decryptBackupPayload|encryptBackupPayload/);
   assert.doesNotMatch(ipcSource, /JSON\.stringify\(payload, null, 2\)/);
 });
+
+

@@ -1,4 +1,4 @@
-function normalizeReason(reason?: string) {
+﻿function normalizeReason(reason?: string) {
   return (reason ?? '').trim().toLowerCase();
 }
 
@@ -8,6 +8,11 @@ function includesAny(source: string, keywords: string[]) {
 
 function withDiagnosticsHint(message: string) {
   return `${message} 如需进一步排查，请前往诊断页查看连接日志。`;
+}
+
+function extractPort(reason?: string) {
+  const match = reason?.match(/port\s+(\d+)|(127\.0\.0\.1:)(\d+)/i);
+  return match?.[1] ?? match?.[3] ?? null;
 }
 
 export function describeTunnelFailure(reason?: string) {
@@ -44,8 +49,9 @@ export function describeTunnelFailure(reason?: string) {
     return withDiagnosticsHint('无法解析服务器地址，请检查公网 IP 或域名是否填写正确。');
   }
 
-  if (includesAny(normalized, ['eaddrinuse', 'address already in use', 'port 18789'])) {
-    return '本地端口 18789 已被占用，请先关闭冲突程序后再重试。';
+  if (includesAny(normalized, ['eaddrinuse', 'address already in use', 'port'])) {
+    const port = extractPort(reason);
+    return `本地端口 ${port ?? '已配置端口'} 已被占用，请先关闭冲突程序后再重试。`;
   }
 
   if (includesAny(normalized, ['already connected', 'already have active connection', 'active connection'])) {
@@ -62,3 +68,5 @@ export function describeTunnelFailure(reason?: string) {
 
   return withDiagnosticsHint('连接失败，请检查公网 IP、SSH 配置和 OpenClaw Token 是否正确。');
 }
+
+

@@ -136,7 +136,7 @@ export function App() {
   const previousTunnelStatusRef = useRef<ConnectionVisualState>('disconnected');
   const pendingImportPasswordRef = useRef('');
 
-  const appVersion = appMetadata?.version ?? window.openclawDesktop?.version ?? '0.1.0';
+  const appVersion = appMetadata?.version ?? window.openclawDesktop?.version ?? '0.2.1';
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -417,6 +417,15 @@ export function App() {
   };
 
   const handleConnectServer = async (server: LocalServerRecord) => {
+    if ((activeConnectionServerId && activeConnectionServerId !== server.id) || (busyServerId && busyServerId !== server.id)) {
+      showFeedback('error', '无法连接', '当前已有服务器连接中，请先断开现有连接后再试。');
+      return;
+    }
+
+    if (activeConnectionServerId === server.id || busyServerId === server.id) {
+      return;
+    }
+
     setStatus('connecting');
     setStatusServerId(server.id);
     setStatusServerName(server.name || null);
@@ -479,10 +488,10 @@ export function App() {
 
   const handleOpenGui = async (server: LocalServerRecord) => {
     try {
-      await openGui(server.openclawToken);
+      await openGui(server.openclawToken, server.openclawPort);
       showFeedback('info', '正在打开', `正在打开 ${server.name || server.serverIp} 的 OpenClaw。`);
-    } catch {
-      showFeedback('error', '打开失败', OPEN_GUI_FAILURE_NOTICE);
+    } catch (error) {
+      showFeedback('error', '打开失败', describeTunnelFailure(error instanceof Error ? error.message : ''));
     }
   };
 

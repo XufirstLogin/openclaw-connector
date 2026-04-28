@@ -1,4 +1,5 @@
-import type { ServerConfigState } from '../state/configStore';
+﻿import type { ServerConfigState } from '../state/configStore';
+import { DEFAULT_OPENCLAW_PORT } from '../state/configStore';
 import type {
   TunnelConnectRequest,
   TunnelConnectResult,
@@ -18,8 +19,8 @@ function getBridge() {
   return window.openclawDesktop?.tunnel;
 }
 
-export function buildLocalGuiUrl(token: string) {
-  return `http://127.0.0.1:18789/#token=${encodeURIComponent(token)}`;
+export function buildLocalGuiUrl(token: string, openclawPort: number = DEFAULT_OPENCLAW_PORT) {
+  return `http://127.0.0.1:${openclawPort}/#token=${encodeURIComponent(token)}`;
 }
 
 function toConnectRequest(config: ServerConfigState & { id?: string; name?: string }): TunnelConnectRequest {
@@ -29,6 +30,7 @@ function toConnectRequest(config: ServerConfigState & { id?: string; name?: stri
     serverIp: config.serverIp,
     sshPort: config.sshPort,
     sshUsername: config.sshUsername,
+    openclawPort: config.openclawPort,
     authType: config.authType,
     sshPassword: config.sshPassword,
     sshPrivateKey: config.sshPrivateKey,
@@ -44,7 +46,7 @@ export async function getTunnelStatus(): Promise<TunnelStateSnapshot> {
 
   return {
     status: currentStatus,
-    localUrl: activeConfig ? buildLocalGuiUrl(activeConfig.openclawToken) : undefined,
+    localUrl: activeConfig ? buildLocalGuiUrl(activeConfig.openclawToken, activeConfig.openclawPort) : undefined,
     serverId: (activeConfig as (ServerConfigState & { id?: string; name?: string }) | null)?.id,
     serverName: (activeConfig as (ServerConfigState & { id?: string; name?: string }) | null)?.name,
     serverIp: activeConfig?.serverIp,
@@ -94,7 +96,7 @@ export async function connectTunnel(config: ServerConfigState & { id?: string; n
 
   activeConfig = { ...config };
   currentStatus = 'connected';
-  return { connected: true, localUrl: buildLocalGuiUrl(config.openclawToken), mode: 'mock' };
+  return { connected: true, localUrl: buildLocalGuiUrl(config.openclawToken, config.openclawPort), mode: 'mock' };
 }
 
 export async function testTunnelConnection(config: ServerConfigState & { id?: string; name?: string }): Promise<TunnelConnectResult> {
@@ -108,7 +110,12 @@ export async function testTunnelConnection(config: ServerConfigState & { id?: st
     return { connected: false, reason: '缺少服务器 IP、SSH 用户名或 OpenClaw Token。', mode: 'mock' };
   }
 
-  return { connected: true, localUrl: buildLocalGuiUrl(config.openclawToken), mode: 'mock', reason: '测试连接成功。' };
+  return {
+    connected: true,
+    localUrl: buildLocalGuiUrl(config.openclawToken, config.openclawPort),
+    mode: 'mock',
+    reason: '测试连接成功。',
+  };
 }
 
 export async function disconnectTunnel() {
@@ -124,13 +131,13 @@ export async function disconnectTunnel() {
   return { disconnected: true };
 }
 
-export async function openGui(token: string) {
+export async function openGui(token: string, openclawPort: number = DEFAULT_OPENCLAW_PORT) {
   const bridge = getBridge();
   if (bridge) {
-    return bridge.openGui(token);
+    return bridge.openGui(token, openclawPort);
   }
 
-  const url = buildLocalGuiUrl(token);
+  const url = buildLocalGuiUrl(token, openclawPort);
   window.open(url, '_blank');
   return { opened: true, url };
 }
@@ -143,3 +150,4 @@ export function subscribeTunnelStatus(listener: (snapshot: TunnelStateSnapshot) 
 
   return () => undefined;
 }
+

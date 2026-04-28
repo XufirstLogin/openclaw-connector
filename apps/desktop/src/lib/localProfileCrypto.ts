@@ -11,6 +11,12 @@ const ALGORITHM = 'aes-256-gcm';
 const KEY_LENGTH = 32;
 const IV_LENGTH = 12;
 const BACKUP_SALT_LENGTH = 16;
+const BACKUP_SCRYPT_PARAMS = {
+  N: 2 ** 17,
+  r: 8,
+  p: 1,
+  maxmem: 256 * 1024 * 1024,
+} as const;
 
 function ensureLocalProfileKey(keyFilePath: string) {
   fs.mkdirSync(path.dirname(keyFilePath), { recursive: true });
@@ -31,7 +37,7 @@ function ensureLocalProfileKey(keyFilePath: string) {
 }
 
 function deriveBackupKey(password: string, salt: Buffer) {
-  return scryptSync(password, salt, KEY_LENGTH, { N: 2 ** 17, r: 8, p: 1 });
+  return scryptSync(password, salt, KEY_LENGTH, BACKUP_SCRYPT_PARAMS);
 }
 
 export class LocalProfileCrypto {

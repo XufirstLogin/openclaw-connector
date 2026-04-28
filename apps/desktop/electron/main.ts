@@ -17,13 +17,13 @@ import { registerLocalProfileHandlers } from './ipc/localProfileHandlers';
 import { TunnelManager } from './tunnelManager';
 
 const tunnelManager = new TunnelManager();
-const APP_VERSION = '0.2.0';
+const APP_VERSION = '0.2.1';
 const APP_PRODUCT_NAME = 'OpenClaw Connector';
-const APP_RUNTIME_MODE = '本地模式';
-const APP_COPYRIGHT_OWNER = 'CSDN 作者';
-const APP_AUTHOR_NAME = '小小许下士';
+const APP_RUNTIME_MODE = '\u672c\u5730\u6a21\u5f0f';
+const APP_COPYRIGHT_OWNER = 'CSDN \u4f5c\u8005';
+const APP_AUTHOR_NAME = '\u5c0f\u5c0f\u8bb8\u4e0b\u58eb';
 const APP_AUTHOR_ID = 'weixin_46085234';
-const APP_SOURCE_NOTE = '本软件部分设计与实现思路来源于 CSDN 作者“小小许下士（weixin_46085234）”。';
+const APP_SOURCE_NOTE = '\u672c\u8f6f\u4ef6\u90e8\u5206\u8bbe\u8ba1\u4e0e\u5b9e\u73b0\u601d\u8def\u6765\u6e90\u4e8e CSDN \u4f5c\u8005\u201c\u5c0f\u5c0f\u8bb8\u4e0b\u58eb\uff08weixin_46085234\uff09\u201d\u3002';
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 const TUNNEL_HEALTH_POLL_MS = 5_000;
 const RECONNECT_DELAY_MS = [3_000, 5_000, 10_000] as const;
@@ -69,24 +69,28 @@ async function runPreflightChecks(config: TunnelConnectRequest): Promise<TunnelP
   const issues: string[] = [];
 
   if (!config.serverIp?.trim()) {
-    issues.push('请填写服务器公网 IP。');
+    issues.push('\\u8bf7\\u586b\\u5199\\u670d\\u52a1\\u5668\\u516c\\u7f51 IP\\u3002');
   }
   if (!config.sshUsername?.trim()) {
-    issues.push('请填写 SSH 用户名。');
+    issues.push('\\u8bf7\\u586b\\u5199 SSH \\u7528\\u6237\\u540d\\u3002');
   }
   if (!config.openclawToken?.trim()) {
-    issues.push('请填写 OpenClaw Token。');
+    issues.push('\\u8bf7\\u586b\\u5199 OpenClaw Token\\u3002');
   }
   if (config.openclawToken?.trim() && config.openclawToken.trim().length < 8) {
-    issues.push('OpenClaw Token 长度过短，请检查后重新填写。');
+    issues.push('OpenClaw Token \\u957f\\u5ea6\\u8fc7\\u77ed\\uff0c\\u8bf7\\u68c0\\u67e5\\u540e\\u91cd\\u65b0\\u586b\\u5199\\u3002');
   }
   if (!Number.isInteger(config.sshPort) || config.sshPort < 1 || config.sshPort > 65535) {
-    issues.push('SSH 端口必须是 1-65535 之间的整数。');
+    issues.push('SSH \\u7aef\\u53e3\\u5fc5\\u987b\\u662f 1-65535 \\u4e4b\\u95f4\\u7684\\u6574\\u6570\\u3002');
   }
 
-  const portAvailable = await isLocalPortAvailable(18789);
+  if (!Number.isInteger(config.openclawPort) || config.openclawPort < 1 || config.openclawPort > 65535) {
+    issues.push('OpenClaw \\u7aef\\u53e3\\u5fc5\\u987b\\u662f 1-65535 \\u4e4b\\u95f4\\u7684\\u6574\\u6570\\u3002');
+  }
+
+  const portAvailable = await isLocalPortAvailable(config.openclawPort);
   if (!portAvailable) {
-    issues.push('本地端口 18789 已被占用，请先关闭占用程序。');
+    issues.push('\\u672c\\u5730\\u7aef\\u53e3 ' + config.openclawPort + ' \\u5df2\\u88ab\\u5360\\u7528\\uff0c\\u8bf7\\u5148\\u5173\\u95ed\\u5360\\u7528\\u7a0b\\u5e8f\\u3002');
   }
 
   return {
@@ -249,6 +253,7 @@ function toTunnelConnectRequest(server: LocalServerRecord): TunnelConnectRequest
     serverIp: server.serverIp,
     sshPort: server.sshPort,
     sshUsername: server.sshUsername,
+    openclawPort: server.openclawPort,
     authType: server.authType,
     sshPassword: server.sshPassword,
     sshPrivateKey: server.sshPrivateKey,
@@ -372,7 +377,7 @@ async function openActiveOpenClaw() {
     return { opened: false, url: '' };
   }
 
-  return tunnelManager.openGui(activeConfig.openclawToken);
+  return tunnelManager.openGui(activeConfig.openclawToken, activeConfig.openclawPort);
 }
 
 function getTrayTargetLabel(snapshot: TunnelStateSnapshot) {
@@ -625,7 +630,14 @@ function registerIpcHandlers() {
     emitTunnelStatusChanged();
     return result;
   });
-  ipcMain.handle('openclaw:tunnel:open-gui', (_event, token: string) => tunnelManager.openGui(token));
+  ipcMain.handle('openclaw:tunnel:open-gui', async (_event, token: string, openclawPort: number) => {
+    try {
+      return await tunnelManager.openGui(token, openclawPort);
+    } catch (error) {
+      appendDiagnosticsEntry('error', 'open_gui_failed', error instanceof Error ? error.message : '打开 OpenClaw 失败。', tunnelManager.getStatus());
+      throw error;
+    }
+  });
   ipcMain.handle('openclaw:settings:autostart:get', () => resolveAutostartEnabled());
   ipcMain.handle('openclaw:settings:autostart:set', (_event, enabled: boolean) => applyAutostartEnabled(Boolean(enabled)));
   ipcMain.handle('openclaw:diagnostics:list', () => listDiagnostics());

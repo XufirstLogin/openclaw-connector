@@ -1,4 +1,4 @@
-import net from 'node:net';
+﻿import net from 'node:net';
 import { createRequire } from 'node:module';
 import { TunnelConnectRequest, TunnelConnectResult, TunnelStateSnapshot } from '../../../src/types/bridge';
 import { TunnelAdapter, TunnelAdapterAssessment } from './TunnelAdapter';
@@ -20,6 +20,10 @@ function closeSocket(socket: net.Socket) {
   } catch {
     // ignore cleanup errors
   }
+}
+
+function buildForwardingFailureReason(openclawPort: number, error?: Error) {
+  return `OpenClaw 端口 ${openclawPort} 无法通过隧道访问：${error?.message ?? 'SSH 通道建立失败。'}`;
 }
 
 export class Ssh2TunnelAdapter implements TunnelAdapter {
@@ -62,7 +66,7 @@ export class Ssh2TunnelAdapter implements TunnelAdapter {
   async connect(config: TunnelConnectRequest): Promise<TunnelConnectResult> {
     const ssh2 = loadSsh2Module();
     const commandPreview = buildSshCommandPreview(config);
-    const localUrl = buildLocalGuiUrl(config.openclawToken);
+    const localUrl = buildLocalGuiUrl(config.openclawToken, config.openclawPort);
 
     if (!ssh2?.Client) {
       this.snapshot = {
@@ -123,13 +127,28 @@ export class Ssh2TunnelAdapter implements TunnelAdapter {
       client.on('ready', () => {
         const server = net.createServer((localSocket) => {
           this.sockets.add(localSocket);
+          const cleanupLocalSocket = () => {
+            this.sockets.delete(localSocket);
+          };
+
+          localSocket.on('close', cleanupLocalSocket);
+          localSocket.on('error', cleanupLocalSocket);
+
           const srcAddr = localSocket.localAddress || '127.0.0.1';
           const srcPort = localSocket.localPort || 0;
 
-          client.forwardOut(srcAddr, srcPort, '127.0.0.1', 18789, (error: Error | undefined, stream: any) => {
+          client.forwardOut(srcAddr, srcPort, '127.0.0.1', config.openclawPort, (error: Error | undefined, stream: any) => {
             if (error || !stream) {
-              this.sockets.delete(localSocket);
-              localSocket.destroy(error);
+              this.snapshot = {
+                ...this.snapshot,
+                adapterKind: this.kind,
+                mode: 'ipc',
+                localUrl,
+                commandPreview,
+                reason: buildForwardingFailureReason(config.openclawPort, error),
+              };
+              localSocket.end();
+              closeSocket(localSocket);
               return;
             }
 
@@ -139,11 +158,9 @@ export class Ssh2TunnelAdapter implements TunnelAdapter {
 
             const cleanup = () => {
               this.remoteStreams.delete(stream);
-              this.sockets.delete(localSocket);
+              cleanupLocalSocket();
             };
 
-            localSocket.on('close', cleanup);
-            localSocket.on('error', cleanup);
             stream.on('close', cleanup);
             stream.on('error', cleanup);
           });
@@ -159,7 +176,7 @@ export class Ssh2TunnelAdapter implements TunnelAdapter {
               mode: 'ipc',
               localUrl,
               commandPreview,
-              reason: `本地监听失败: ${error.message}`,
+              reason: `鏈湴鐩戝惉澶辫触: ${error.message}`,
             },
             {
               status: 'error',
@@ -167,19 +184,19 @@ export class Ssh2TunnelAdapter implements TunnelAdapter {
               mode: 'ipc',
               localUrl,
               commandPreview,
-              reason: `本地监听失败: ${error.message}`,
+              reason: `鏈湴鐩戝惉澶辫触: ${error.message}`,
             },
           );
         });
 
-        server.listen(18789, '127.0.0.1', () => {
+        server.listen(config.openclawPort, '127.0.0.1', () => {
           finish(
             {
               connected: true,
               mode: 'ipc',
               localUrl,
               commandPreview,
-              reason: `ssh2 tunnel active on 127.0.0.1:18789 -> ${config.serverIp}:127.0.0.1:18789`,
+              reason: `ssh2 tunnel active on 127.0.0.1:${config.openclawPort} -> ${config.serverIp}:127.0.0.1:${config.openclawPort}`,
             },
             {
               status: 'connected',
@@ -187,7 +204,7 @@ export class Ssh2TunnelAdapter implements TunnelAdapter {
               mode: 'ipc',
               localUrl,
               commandPreview,
-              reason: `ssh2 tunnel active on 127.0.0.1:18789 -> ${config.serverIp}:127.0.0.1:18789`,
+              reason: `ssh2 tunnel active on 127.0.0.1:${config.openclawPort} -> ${config.serverIp}:127.0.0.1:${config.openclawPort}`,
             },
           );
         });
@@ -218,7 +235,7 @@ export class Ssh2TunnelAdapter implements TunnelAdapter {
         // Ignore stale close events from a previous connection
         if (this.currentConnectionId !== connectionId) return;
 
-        // Clean up TCP server and sockets to free port 18789 for future reconnections
+        // Clean up TCP server and sockets to free the configured local OpenClaw port for future reconnections
         for (const socket of this.sockets) {
           closeSocket(socket);
         }
@@ -312,3 +329,5 @@ export class Ssh2TunnelAdapter implements TunnelAdapter {
     return { ...this.snapshot, adapterKind: this.kind, mode: this.snapshot.mode ?? 'ipc' };
   }
 }
+
+

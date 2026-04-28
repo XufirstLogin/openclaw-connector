@@ -1,4 +1,5 @@
-import React from 'react';
+﻿import React from 'react';
+import { buildLocalGuiUrl } from '../lib/tunnelClient';
 import type { ConnectionVisualState } from '../types/app';
 import type { LocalServerRecord } from '../types/localProfile';
 import { Button, GlassCard, StatusBadge } from './ui';
@@ -55,6 +56,8 @@ export function ServerDetailPanel({
   const canConnect = !anotherServerActive && (status === 'disconnected' || status === 'error');
   const canDisconnect = !anotherServerActive && (status === 'connected' || status === 'connecting' || status === 'disconnecting');
   const canOpenGui = !anotherServerActive && status === 'connected';
+  const localMapping = `127.0.0.1:${server.openclawPort} → 127.0.0.1:${server.openclawPort}`;
+  const guiUrl = buildLocalGuiUrl('******', server.openclawPort);
 
   return (
     <GlassCard
@@ -86,7 +89,7 @@ export function ServerDetailPanel({
             </div>
             <div className="detail-item">
               <span className="detail-item__label">本地映射</span>
-              <strong className="detail-item__value">127.0.0.1:18789 → 127.0.0.1:18789</strong>
+              <strong className="detail-item__value">{localMapping}</strong>
             </div>
             <div className="detail-item">
               <span className="detail-item__label">最近连接</span>
@@ -94,7 +97,7 @@ export function ServerDetailPanel({
             </div>
             <div className="detail-item">
               <span className="detail-item__label">GUI 链接</span>
-              <strong className="detail-item__value detail-item__value--mono">http://127.0.0.1:18789/#token=******</strong>
+              <strong className="detail-item__value detail-item__value--mono">{guiUrl}</strong>
             </div>
           </div>
 
@@ -125,3 +128,4 @@ export function ServerDetailPanel({
     </GlassCard>
   );
 }
+

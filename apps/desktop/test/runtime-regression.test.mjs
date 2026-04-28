@@ -22,6 +22,7 @@ const bridgeSource = fs.readFileSync(path.join(appRoot, 'src', 'types', 'bridge.
 const ipcHandlersSource = fs.readFileSync(path.join(appRoot, 'electron', 'ipc', 'localProfileHandlers.ts'), 'utf8');
 const stylesSource = fs.readFileSync(path.join(appRoot, 'src', 'styles', 'index.css'), 'utf8');
 const connectionStatusCardSource = fs.readFileSync(path.join(appRoot, 'src', 'components', 'ConnectionStatusCard.tsx'), 'utf8');
+const tunnelManagerSource = fs.readFileSync(path.join(appRoot, 'electron', 'tunnelManager.ts'), 'utf8');
 
 function matchAny(source, patterns, message) {
   const matched = patterns.some((pattern) => pattern.test(source));
@@ -39,6 +40,12 @@ test('desktop package declares ssh2 runtime dependency', () => {
 
 test('ssh2 adapter avoids eval-based runtime loading', () => {
   assert.doesNotMatch(ssh2Source, /eval\((['"])require\1\)/);
+});
+
+test('ssh2 forwarding failures are handled in-process instead of bubbling as unhandled socket errors', () => {
+  assert.doesNotMatch(ssh2Source, /localSocket\.destroy\(error\)/);
+  assert.match(ssh2Source, /localSocket\.(?:on|once)\('error'/);
+  assert.match(ssh2Source, /OpenClaw.*无法通过隧道访问|SSH.*通道.*失败/i);
 });
 
 test('desktop main-process tsup scripts keep electron external', () => {
@@ -161,6 +168,16 @@ test('desktop tunnel bridge exposes a dedicated test-connection method for pre-s
   assert.match(bridgeSource, /testConnection/);
   assert.match(preloadSource, /testConnection/);
   assert.match(mainSource, /openclaw:tunnel:test/);
+});
+
+test('desktop tunnel connect and test flows verify the forwarded OpenClaw endpoint before reporting success', () => {
+  assert.match(tunnelManagerSource, /async function verifyOpenClawEndpoint/);
+  assert.match(tunnelManagerSource, /http\.get|http\.request/);
+  assert.ok(
+    (tunnelManagerSource.match(/await verifyOpenClawEndpoint\(config\.openclawPort\)/g) ?? []).length >= 2,
+    'Expected both connect and testConnection flows to validate the forwarded OpenClaw port.',
+  );
+  assert.match(tunnelManagerSource, /OpenClaw.*端口.*未在预期时间内响应|OpenClaw.*端口.*无法通过隧道访问/i);
 });
 
 test('desktop detail panel body no longer uses a stretching row formula that can push footer actions below the fold', () => {

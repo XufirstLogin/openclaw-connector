@@ -1,8 +1,34 @@
+import http from 'node:http';
 import { shell } from 'electron';
 import { TunnelAdapterFactory } from './tunnel/TunnelAdapterFactory';
 import { buildLocalGuiUrl } from './tunnel/utils';
 import { TunnelConnectRequest, TunnelConnectResult, TunnelStateSnapshot } from '../src/types/bridge';
 import { TunnelAdapter } from './tunnel/adapters/TunnelAdapter';
+
+async function verifyOpenClawEndpoint(openclawPort: number): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const request = http.get(
+      {
+        host: '127.0.0.1',
+        port: openclawPort,
+        path: '/',
+        timeout: 3_000,
+      },
+      (response) => {
+        response.resume();
+        resolve();
+      },
+    );
+
+    request.once('timeout', () => {
+      request.destroy(new Error(`OpenClaw 端口 ${openclawPort} 未在预期时间内响应。`));
+    });
+
+    request.once('error', (error) => {
+      reject(error);
+    });
+  });
+}
 
 export class TunnelManager {
   private state: TunnelStateSnapshot = {
@@ -26,7 +52,7 @@ export class TunnelManager {
     if (this.connectLock) {
       return {
         connected: false,
-        reason: '正在处理连接请求，请稍候。',
+        reason: 'A connection request is already being processed. Please wait.',
         localUrl: this.state.localUrl,
         commandPreview: this.state.commandPreview,
         mode: this.state.mode,
@@ -36,7 +62,7 @@ export class TunnelManager {
     if (this.state.status === 'connecting' || this.state.status === 'connected') {
       return {
         connected: false,
-        reason: '当前已有连接活动中。',
+        reason: 'Another tunnel connection is already active.',
         localUrl: this.state.localUrl,
         commandPreview: this.state.commandPreview,
         mode: this.state.mode,
@@ -60,7 +86,7 @@ export class TunnelManager {
         this.activeConfig = null;
         this.state = {
           status: 'error',
-          reason: '缺少 serverIp / sshUsername / openclawToken 等必填参数。',
+          reason: 'Missing required fields: serverIp / sshUsername / openclawToken.',
           diagnostics: this.adapterFactory.diagnose(config),
         };
         return {
@@ -78,7 +104,7 @@ export class TunnelManager {
         this.activeConfig = null;
         this.state = {
           status: 'error',
-          localUrl: result.localUrl ?? buildLocalGuiUrl(config.openclawToken),
+          localUrl: result.localUrl ?? buildLocalGuiUrl(config.openclawToken, config.openclawPort),
           commandPreview: result.commandPreview,
           serverId: config.serverId,
           serverName: config.serverName,
@@ -98,13 +124,45 @@ export class TunnelManager {
         };
       }
 
+      try {
+        await verifyOpenClawEndpoint(config.openclawPort);
+      } catch (error) {
+        await adapter.disconnect();
+        this.activeAdapter = null;
+        this.activeConfig = null;
+        const reason = error instanceof Error
+          ? `OpenClaw 端口 ${config.openclawPort} 无法通过隧道访问：${error.message}`
+          : `OpenClaw 端口 ${config.openclawPort} 无法通过隧道访问。`;
+        this.state = {
+          status: 'error',
+          localUrl: result.localUrl ?? buildLocalGuiUrl(config.openclawToken, config.openclawPort),
+          commandPreview: result.commandPreview,
+          serverId: config.serverId,
+          serverName: config.serverName,
+          serverIp: config.serverIp,
+          sshUsername: config.sshUsername,
+          authType: config.authType,
+          reason,
+          adapterKind: adapter.kind,
+          mode: result.mode ?? adapter.getSnapshot().mode,
+          diagnostics: this.adapterFactory.diagnose(config),
+        };
+        return {
+          connected: false,
+          localUrl: this.state.localUrl,
+          commandPreview: this.state.commandPreview,
+          mode: this.state.mode,
+          reason,
+        };
+      }
+
       this.activeAdapter = adapter;
       this.activeConfig = { ...config };
 
       const adapterSnapshot = adapter.getSnapshot();
       this.state = {
         status: 'connected',
-        localUrl: result.localUrl ?? buildLocalGuiUrl(config.openclawToken),
+        localUrl: result.localUrl ?? buildLocalGuiUrl(config.openclawToken, config.openclawPort),
         commandPreview: result.commandPreview,
         serverId: config.serverId,
         serverName: config.serverName,
@@ -132,7 +190,7 @@ export class TunnelManager {
     if (this.connectLock || this.state.status === 'connecting' || this.state.status === 'connected') {
       return {
         connected: false,
-        reason: '当前已有连接活动中，无法测试。',
+        reason: 'Another tunnel connection is already active, so test mode is unavailable.',
         mode: this.state.mode,
       };
     }
@@ -140,7 +198,7 @@ export class TunnelManager {
     if (!config.serverIp || !config.openclawToken || !config.sshUsername) {
       return {
         connected: false,
-        reason: '缺少 serverIp / sshUsername / openclawToken 等必填参数。',
+        reason: 'Missing required fields: serverIp / sshUsername / openclawToken.',
         mode: 'skeleton',
       };
     }
@@ -150,6 +208,22 @@ export class TunnelManager {
       const testFactory = new TunnelAdapterFactory();
       const adapter = testFactory.pick(config);
       const result = await adapter.connect(config);
+
+      if (result.connected) {
+        try {
+          await verifyOpenClawEndpoint(config.openclawPort);
+        } catch (error) {
+          return {
+            connected: false,
+            mode: result.mode,
+            localUrl: result.localUrl,
+            commandPreview: result.commandPreview,
+            reason: error instanceof Error
+              ? `OpenClaw 端口 ${config.openclawPort} 无法通过隧道访问：${error.message}`
+              : `OpenClaw 端口 ${config.openclawPort} 无法通过隧道访问。`,
+          };
+        }
+      }
 
       try {
         await adapter.disconnect();
@@ -177,7 +251,7 @@ export class TunnelManager {
       this.state = {
         ...this.state,
         status: 'error',
-        reason: liveSnapshot.reason ?? this.state.reason ?? 'SSH 连接已断开，请重新连接。',
+        reason: liveSnapshot.reason ?? this.state.reason ?? 'SSH connection dropped. Please reconnect.',
       };
       return { ...this.state };
     }
@@ -205,8 +279,9 @@ export class TunnelManager {
     return { disconnected: true };
   }
 
-  async openGui(token: string) {
-    const url = buildLocalGuiUrl(token);
+  async openGui(token: string, openclawPort: number) {
+    await verifyOpenClawEndpoint(openclawPort);
+    const url = buildLocalGuiUrl(token, openclawPort);
     await shell.openExternal(url);
     return { opened: true, url };
   }
@@ -215,3 +290,5 @@ export class TunnelManager {
     return this.activeConfig ? { ...this.activeConfig } : null;
   }
 }
+
+

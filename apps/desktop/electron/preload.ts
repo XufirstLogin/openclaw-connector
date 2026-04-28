@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+﻿import { contextBridge, ipcRenderer } from 'electron';
 import type { LocalProfileImportPayload, SaveLocalServerInput } from '../src/types/localProfile';
 import {
   type AppNavigationTarget,
@@ -7,14 +7,14 @@ import {
 } from '../src/types/bridge';
 
 const bridge: OpenClawDesktopBridge = {
-  version: '0.1.0',
+  version: '0.2.1',
   tunnel: {
     getStatus: () => ipcRenderer.invoke('openclaw:tunnel:get-status'),
     connect: (config: TunnelConnectRequest) => ipcRenderer.invoke('openclaw:tunnel:connect', config),
     testConnection: (config: TunnelConnectRequest) => ipcRenderer.invoke('openclaw:tunnel:test', config),
     runPreflightChecks: (config: TunnelConnectRequest) => ipcRenderer.invoke('openclaw:tunnel:preflight', config),
     disconnect: () => ipcRenderer.invoke('openclaw:tunnel:disconnect'),
-    openGui: (token: string) => ipcRenderer.invoke('openclaw:tunnel:open-gui', token),
+    openGui: (token: string, openclawPort: number) => ipcRenderer.invoke('openclaw:tunnel:open-gui', token, openclawPort),
     onStatusChanged: (listener) => {
       const channel = 'openclaw:tunnel:status-changed';
       const wrapped = (_event: Electron.IpcRendererEvent, snapshot: Parameters<typeof listener>[0]) => {
@@ -68,3 +68,5 @@ const bridge: OpenClawDesktopBridge = {
 };
 
 contextBridge.exposeInMainWorld('openclawDesktop', bridge);
+
+

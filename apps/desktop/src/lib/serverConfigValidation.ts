@@ -40,6 +40,10 @@ export function validateServerConfig(config: ServerConfigState) {
     return '请输入 OpenClaw Token';
   }
 
+  if (!Number.isInteger(config.openclawPort) || config.openclawPort < 1 || config.openclawPort > 65535) {
+    return 'OpenClaw 端口必须在 1-65535 之间';
+  }
+
   if (config.authType === 'password' && !sshPassword) {
     return '请输入 SSH 密码';
   }
@@ -50,3 +54,4 @@ export function validateServerConfig(config: ServerConfigState) {
 
   return null;
 }
+

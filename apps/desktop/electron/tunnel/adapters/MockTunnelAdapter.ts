@@ -20,7 +20,7 @@ export class MockTunnelAdapter implements TunnelAdapter {
       status: 'connected',
       adapterKind: this.kind,
       mode: 'mock',
-      localUrl: buildLocalGuiUrl(config.openclawToken),
+      localUrl: buildLocalGuiUrl(config.openclawToken, config.openclawPort),
       commandPreview,
       reason: 'Using mock adapter because a real tunnel backend is not active in this scaffold.',
     };
@@ -46,4 +46,6 @@ export class MockTunnelAdapter implements TunnelAdapter {
     return { ...this.snapshot, adapterKind: this.kind, mode: 'mock' };
   }
 }
+
+
 

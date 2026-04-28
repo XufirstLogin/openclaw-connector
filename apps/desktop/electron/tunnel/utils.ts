@@ -1,16 +1,23 @@
 ﻿import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { DEFAULT_OPENCLAW_PORT } from '../../src/state/configStore';
 import { TunnelConnectRequest } from '../../src/types/bridge';
 
-export function buildLocalGuiUrl(token: string) {
-  return `http://127.0.0.1:18789/#token=${encodeURIComponent(token)}`;
+function resolveOpenClawPort(openclawPort?: number) {
+  return Number.isInteger(openclawPort) && openclawPort && openclawPort > 0 ? openclawPort : DEFAULT_OPENCLAW_PORT;
+}
+
+export function buildLocalGuiUrl(token: string, openclawPort: number = DEFAULT_OPENCLAW_PORT) {
+  const port = resolveOpenClawPort(openclawPort);
+  return `http://127.0.0.1:${port}/#token=${encodeURIComponent(token)}`;
 }
 
 export function buildSshCommandArgs(config: TunnelConnectRequest, privateKeyPath?: string) {
+  const openclawPort = resolveOpenClawPort(config.openclawPort);
   const args = [
     '-N',
     '-L',
-    '18789:127.0.0.1:18789',
+    `${openclawPort}:127.0.0.1:${openclawPort}`,
     '-p',
     String(config.sshPort || 22),
     '-o',
@@ -35,11 +42,12 @@ export function buildSshCommandPreview(
   config: TunnelConnectRequest,
   options?: { includeKeyHint?: boolean; sshPath?: string },
 ) {
+  const openclawPort = resolveOpenClawPort(config.openclawPort);
   const parts = [
     options?.sshPath ?? 'ssh',
     '-N',
     '-L',
-    '18789:127.0.0.1:18789',
+    `${openclawPort}:127.0.0.1:${openclawPort}`,
     '-p',
     String(config.sshPort || 22),
     '-o',
@@ -62,3 +70,4 @@ export function detectSystemSshPath() {
 
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
 }
+

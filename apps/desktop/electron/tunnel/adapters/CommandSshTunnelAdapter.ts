@@ -112,7 +112,7 @@ export class CommandSshTunnelAdapter implements TunnelAdapter {
       sshPath: this.sshPath,
     });
 
-    const localUrl = buildLocalGuiUrl(config.openclawToken);
+    const localUrl = buildLocalGuiUrl(config.openclawToken, config.openclawPort);
 
     try {
       this.childProcess = spawn(this.sshPath, args, {
@@ -238,4 +238,6 @@ export class CommandSshTunnelAdapter implements TunnelAdapter {
     return { ...this.snapshot, adapterKind: this.kind, mode: 'ipc' };
   }
 }
+
+
 

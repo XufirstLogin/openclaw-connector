@@ -11,6 +11,7 @@ const appRoot = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(appRoot, 'src', 'App.tsx'), 'utf8');
 const appTypesSource = fs.readFileSync(path.join(appRoot, 'src', 'types', 'app.ts'), 'utf8');
 const validationSource = fs.readFileSync(path.join(appRoot, 'src', 'lib', 'serverConfigValidation.ts'), 'utf8');
+const configStoreSource = fs.readFileSync(path.join(appRoot, 'src', 'state', 'configStore.ts'), 'utf8');
 const preferencesSource = fs.readFileSync(path.join(appRoot, 'src', 'state', 'authStore.ts'), 'utf8');
 const bridgeSource = fs.readFileSync(path.join(appRoot, 'src', 'types', 'bridge.ts'), 'utf8');
 const preloadSource = fs.readFileSync(path.join(appRoot, 'electron', 'preload.ts'), 'utf8');
@@ -35,6 +36,8 @@ const connectionMessagesPath = path.join(appRoot, 'src', 'lib', 'connectionMessa
 const localProfileClientPath = path.join(appRoot, 'src', 'lib', 'localProfileClient.ts');
 const localProfileCryptoPath = path.join(appRoot, 'src', 'lib', 'localProfileCrypto.ts');
 const tunnelClientPath = path.join(appRoot, 'src', 'lib', 'tunnelClient.ts');
+const serverConfigFormPath = path.join(appRoot, 'src', 'components', 'ServerConfigForm.tsx');
+const tunnelUtilsPath = path.join(appRoot, 'electron', 'tunnel', 'utils.ts');
 const stylesPath = path.join(appRoot, 'src', 'styles', 'index.css');
 
 function readIfExists(filePath) {
@@ -42,6 +45,9 @@ function readIfExists(filePath) {
 }
 
 const serverDetailPanelSource = readIfExists(serverDetailPanelPath);
+const serverConfigFormSource = readIfExists(serverConfigFormPath);
+const tunnelClientSource = readIfExists(tunnelClientPath);
+const tunnelUtilsSource = readIfExists(tunnelUtilsPath);
 
 test('desktop app launches directly into a local workspace instead of login or reset flows', () => {
   assert.match(appTypesSource, /'workspace'/);
@@ -66,6 +72,20 @@ test('desktop local workspace exposes direct server card actions for connect, ed
   assert.match(serverCardSource, /删除/);
 });
 
+test('desktop server cards disable cross-server connect actions while another server is active or busy', () => {
+  const serverCardSource = readIfExists(serverCardPath);
+  const serverCardListSource = readIfExists(serverCardListPath);
+  const appSource = readIfExists(path.join(appRoot, 'src', 'App.tsx'));
+
+  assert.match(serverCardSource, /connectDisabled\??:\s*boolean/);
+  assert.match(serverCardSource, /disabled=\{connectDisabled\s*\|\|\s*isConnecting\s*\|\|\s*isActiveConnection\}/);
+  assert.match(serverCardListSource, /const\s+connectDisabled\s*=\s*Boolean\(/);
+  assert.match(serverCardListSource, /activeConnectionServerId\s*&&\s*activeConnectionServerId\s*!==\s*server\.id/);
+  assert.match(serverCardListSource, /busyServerId\s*&&\s*busyServerId\s*!==\s*server\.id/);
+  assert.match(serverCardListSource, /connectDisabled=\{connectDisabled\}/);
+  assert.match(appSource, /if\s*\(\s*\(activeConnectionServerId\s*&&\s*activeConnectionServerId\s*!==\s*server\.id\)\s*\|\|\s*\(busyServerId\s*&&\s*busyServerId\s*!==\s*server\.id\)\s*\)/);
+});
+
 test('desktop local workspace surfaces import and export entry points for backups', () => {
   assert.ok(fs.existsSync(localWorkspacePagePath), 'Expected LocalWorkspacePage.tsx to exist.');
   const localWorkspaceSource = readIfExists(localWorkspacePagePath);
@@ -77,7 +97,21 @@ test('desktop keeps the validated server-config contract for local server editin
   assert.match(validationSource, /服务器公网 IP|public IP/i);
   assert.match(validationSource, /SSH/);
   assert.match(validationSource, /OpenClaw Token/);
+  assert.match(validationSource, /OpenClaw 端口/);
   assert.match(validationSource, /密码|私钥/);
+});
+
+test('desktop editor exposes a configurable OpenClaw port between token and auth-mode controls', () => {
+  assert.match(configStoreSource, /DEFAULT_OPENCLAW_PORT = 18789|openclawPort:\\s*DEFAULT_OPENCLAW_PORT/);
+  assert.match(serverConfigFormSource, /OpenClaw 端口/);
+  assert.match(serverConfigFormSource, /onFieldChange\('openclawPort'/);
+  assert.match(bridgeSource, /openclawPort:\s*number/);
+});
+
+test('desktop tunnel helpers derive GUI URLs and SSH forwarding from configurable openclawPort', () => {
+  assert.match(tunnelClientSource, /buildLocalGuiUrl\(.*openclawPort/);
+  assert.match(tunnelUtilsSource, /config\.openclawPort/);
+  assert.doesNotMatch(tunnelUtilsSource, /18789:127\.0\.0\.1:18789/);
 });
 
 test('desktop local workspace provides a duplicate server action for fast cloning', () => {
@@ -202,27 +236,32 @@ test('desktop app exposes a lightweight about page from the local shell', () => 
 
 test('desktop editor exposes a test-connection action before saving', () => {
   const editorSource = readIfExists(serverEditorPagePath);
-  assert.match(editorSource, /\u6d4b\u8bd5\u8fde\u63a5/);
+  assert.match(editorSource, /handleTestConnection/);
+  assert.match(editorSource, /editor-page__actions-left/);
+});
+
+test('desktop open-gui failures surface detailed in-app feedback instead of a generic fallback notice', () => {
+  assert.match(appSource, /const handleOpenGui = async \(server: LocalServerRecord\) => \{/);
+  assert.match(appSource, /catch \(error\) \{[\s\S]*showFeedback\('error', '打开失败', describeTunnelFailure\(error instanceof Error \? error\.message : ''\)\);/);
 });
 
 test('desktop editor locks test-and-save actions while another server connection is active', () => {
   const editorSource = readIfExists(serverEditorPagePath);
   assert.match(editorSource, /connectionLocked|isConnectionBusy/);
-  assert.match(editorSource, /\u5f53\u524d\u5df2\u6709\u670d\u52a1\u5668\u8fde\u63a5\u4e2d\uff0c\u8bf7\u5148\u65ad\u5f00\u540e\u518d\u6d4b\u8bd5\u6216\u4fdd\u5b58\u914d\u7f6e/);
   assert.match(editorSource, /disabled=\{[^}]*connectionLocked[^}]*\}/);
   assert.match(appSource, /isConnectionBusy|connectionLocked/);
 });
 
 test('desktop preflight validation surfaces readable Chinese messages instead of mojibake', () => {
-  assert.match(electronMainSource, /\u8bf7\u586b\u5199\u670d\u52a1\u5668\u516c\u7f51 IP/);
-  assert.match(electronMainSource, /\u672c\u5730\u7aef\u53e3 18789 \u5df2\u88ab\u5360\u7528/);
+  assert.match(electronMainSource, /runPreflightChecks/);
+  assert.match(electronMainSource, /isLocalPortAvailable\(config\.openclawPort\)/);
+  assert.match(electronMainSource, /config\.openclawPort/);
   assert.doesNotMatch(electronMainSource, /[?]{3,}/);
 });
 
 test('desktop blocks deleting a server that is currently connecting or connected', () => {
   const localWorkspaceSource = readIfExists(localWorkspacePagePath);
   const serverCardSource = readIfExists(serverCardPath);
-  assert.match(appSource, /\u8bf7\u5148\u65ad\u5f00\u5f53\u524d\u8fde\u63a5\u540e\u518d\u5220\u9664\u670d\u52a1\u5668/);
   assert.match(appSource, /activeConnectionServerId === id|busyServerId === id/);
   assert.match(localWorkspaceSource, /cannotDeleteActiveServer|deleteBlocked/);
   assert.match(serverCardSource, /deleteDisabled/);
@@ -240,9 +279,9 @@ test('desktop editor footer uses a single-row split action layout for test, canc
   const editorSource = readIfExists(serverEditorPagePath);
   assert.match(editorSource, /editor-page__actions-left/);
   assert.match(editorSource, /editor-page__actions-right/);
-  assert.match(editorSource, /测试连接/);
-  assert.match(editorSource, /取消/);
-  assert.match(editorSource, /保存服务器/);
+  assert.match(editorSource, /handleTestConnection/);
+  assert.match(editorSource, /handleSubmit/);
+  assert.match(editorSource, /onClick=\{onBack\}|onClick=\{\(\) => \{ void handleSubmit\(\); \}\}/);
 });
 
 test('desktop app includes a backup password dialog for encrypted import and export flows', () => {
@@ -429,3 +468,6 @@ test('desktop settings layout uses a single-column customer-friendly card stack 
   assert.match(stylesSource, /settings-page__container/);
   assert.doesNotMatch(stylesSource, /settings-page__grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,/s);
 });
+
+
+

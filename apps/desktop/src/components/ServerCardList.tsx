@@ -43,20 +43,28 @@ export function ServerCardList({
 
   return (
     <div className="server-card-list">
-      {servers.map((server) => (
-        <ServerCard
-          key={server.id}
-          server={server}
-          selected={server.id === selectedId}
-          isActiveConnection={server.id === activeConnectionServerId}
-          isConnecting={server.id === busyServerId}
-          deleteDisabled={server.id === activeConnectionServerId || server.id === busyServerId}
-          onSelect={() => onSelect(server.id)}
-          onConnect={() => onConnect(server)}
-          onEdit={() => onEdit(server)}
-          onDelete={() => onDelete(server)}
-        />
-      ))}
+      {servers.map((server) => {
+        const connectDisabled = Boolean(
+          (activeConnectionServerId && activeConnectionServerId !== server.id)
+          || (busyServerId && busyServerId !== server.id)
+        );
+
+        return (
+          <ServerCard
+            key={server.id}
+            server={server}
+            selected={server.id === selectedId}
+            isActiveConnection={server.id === activeConnectionServerId}
+            isConnecting={server.id === busyServerId}
+            connectDisabled={connectDisabled}
+            deleteDisabled={server.id === activeConnectionServerId || server.id === busyServerId}
+            onSelect={() => onSelect(server.id)}
+            onConnect={() => onConnect(server)}
+            onEdit={() => onEdit(server)}
+            onDelete={() => onDelete(server)}
+          />
+        );
+      })}
     </div>
   );
 }

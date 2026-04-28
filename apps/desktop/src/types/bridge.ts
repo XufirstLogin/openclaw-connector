@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   LocalProfileDocument,
   LocalProfileExportPayload,
   LocalProfileImportPayload,
@@ -18,6 +18,7 @@ export interface TunnelConnectRequest {
   serverIp: string;
   sshPort: number;
   sshUsername: string;
+  openclawPort: number;
   authType: AuthType;
   sshPassword?: string;
   sshPrivateKey?: string;
@@ -93,7 +94,7 @@ export interface TunnelBridge {
   testConnection: (config: TunnelConnectRequest) => Promise<TunnelConnectResult>;
   runPreflightChecks: (config: TunnelConnectRequest) => Promise<TunnelPreflightResult>;
   disconnect: () => Promise<TunnelDisconnectResult>;
-  openGui: (token: string) => Promise<{ opened: boolean; url: string }>;
+  openGui: (token: string, openclawPort: number) => Promise<{ opened: boolean; url: string }>;
   onStatusChanged: (listener: (snapshot: TunnelStateSnapshot) => void) => (() => void);
 }
 
@@ -178,3 +179,5 @@ declare global {
 }
 
 export {};
+
+

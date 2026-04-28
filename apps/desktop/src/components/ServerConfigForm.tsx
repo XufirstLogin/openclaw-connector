@@ -62,6 +62,19 @@ export function ServerConfigForm({ config, onFieldChange }: ServerConfigFormProp
         </Field>
       </div>
 
+      <Field label="OpenClaw 端口" hint="默认 18789">
+        <TextInput
+          type="number"
+          placeholder="18789"
+          value={String(config.openclawPort)}
+          onChange={(event) => {
+            const raw = event.target.value;
+            const num = parseInt(raw, 10);
+            onFieldChange('openclawPort', Number.isNaN(num) ? 0 : num);
+          }}
+        />
+      </Field>
+
       <div className="segmented-toggle" role="tablist" aria-label="SSH 登录方式">
         <Button
           type="button"
@@ -101,3 +114,4 @@ export function ServerConfigForm({ config, onFieldChange }: ServerConfigFormProp
     </div>
   );
 }
+
