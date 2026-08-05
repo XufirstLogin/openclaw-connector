@@ -7,7 +7,7 @@ import {
 } from '../src/types/bridge';
 
 const bridge: OpenClawDesktopBridge = {
-  version: '0.2.1',
+  version: '0.2.2',
   tunnel: {
     getStatus: () => ipcRenderer.invoke('openclaw:tunnel:get-status'),
     connect: (config: TunnelConnectRequest) => ipcRenderer.invoke('openclaw:tunnel:connect', config),

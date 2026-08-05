@@ -17,7 +17,7 @@ import { registerLocalProfileHandlers } from './ipc/localProfileHandlers';
 import { TunnelManager } from './tunnelManager';
 
 const tunnelManager = new TunnelManager();
-const APP_VERSION = '0.2.1';
+const APP_VERSION = '0.2.2';
 const APP_PRODUCT_NAME = 'OpenClaw Connector';
 const APP_RUNTIME_MODE = '\u672c\u5730\u6a21\u5f0f';
 const APP_COPYRIGHT_OWNER = 'CSDN \u4f5c\u8005';

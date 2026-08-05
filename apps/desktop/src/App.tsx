@@ -136,7 +136,7 @@ export function App() {
   const previousTunnelStatusRef = useRef<ConnectionVisualState>('disconnected');
   const pendingImportPasswordRef = useRef('');
 
-  const appVersion = appMetadata?.version ?? window.openclawDesktop?.version ?? '0.2.1';
+  const appVersion = appMetadata?.version ?? window.openclawDesktop?.version ?? '0.2.2';
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);

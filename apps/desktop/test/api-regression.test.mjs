@@ -114,6 +114,11 @@ test('desktop tunnel helpers derive GUI URLs and SSH forwarding from configurabl
   assert.doesNotMatch(tunnelUtilsSource, /18789:127\.0\.0\.1:18789/);
 });
 
+test('desktop SSH command accepts a new host key without an interactive yes/no prompt', () => {
+  assert.match(tunnelUtilsSource, /StrictHostKeyChecking=accept-new/);
+  assert.match(tunnelUtilsSource, /SSH_HOST_KEY_OPTIONS/);
+});
+
 test('desktop local workspace provides a duplicate server action for fast cloning', () => {
   assert.match(serverDetailPanelSource, /复制/);
 });

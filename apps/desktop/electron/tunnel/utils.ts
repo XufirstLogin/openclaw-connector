@@ -7,6 +7,11 @@ function resolveOpenClawPort(openclawPort?: number) {
   return Number.isInteger(openclawPort) && openclawPort && openclawPort > 0 ? openclawPort : DEFAULT_OPENCLAW_PORT;
 }
 
+// The connector runs SSH non-interactively (there is no terminal where a user
+// can answer the first-connection "yes/no" host-key question).  Accept a new
+// host key once, while still rejecting a changed key on subsequent connects.
+const SSH_HOST_KEY_OPTIONS = ['-o', 'StrictHostKeyChecking=accept-new'] as const;
+
 export function buildLocalGuiUrl(token: string, openclawPort: number = DEFAULT_OPENCLAW_PORT) {
   const port = resolveOpenClawPort(openclawPort);
   return `http://127.0.0.1:${port}/#token=${encodeURIComponent(token)}`;
@@ -26,8 +31,7 @@ export function buildSshCommandArgs(config: TunnelConnectRequest, privateKeyPath
     'ServerAliveInterval=30',
     '-o',
     'ServerAliveCountMax=3',
-    '-o',
-    'StrictHostKeyChecking=accept-new',
+    ...SSH_HOST_KEY_OPTIONS,
   ];
 
   if (config.authType === 'key' && privateKeyPath) {
@@ -52,6 +56,7 @@ export function buildSshCommandPreview(
     String(config.sshPort || 22),
     '-o',
     'ExitOnForwardFailure=yes',
+    ...SSH_HOST_KEY_OPTIONS,
   ];
 
   if (options?.includeKeyHint && config.authType === 'key') {
